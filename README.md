@@ -37,6 +37,9 @@ Implemented today:
 - CSI and SS3 decoding for arrows, home/end, page keys, insert/delete, and `F1`-`F4`
 - modifier normalization for common parameterized CSI key sequences
 - bracketed paste handling as a dedicated paste event
+- `Alt+byte` normalization for printable and common single-byte control flows
+- `Ctrl+A` through `Ctrl+Z` normalization as printable payloads with `ctrl`
+  modifiers
 - incomplete buffering for bare `ESC` and partial CSI or SS3 prefixes
 - editor-facing helpers with `editor_action_for_key()` and `event_text()`
 - tracked examples showing `fgof-keys` composed with `fgof-lineedit`
@@ -135,6 +138,13 @@ editor-style consumers:
 - `event_text(event)` returns the printable or paste payload for insert-style
   flows and `""` for non-text events
 
+The default bridge is intentionally conservative:
+
+- plain printable bytes and paste payloads map to insert actions
+- modified printable bytes like `Alt+x` or `Ctrl+a` do not auto-insert
+- apps can still use `event_text(event)` and `event%modifiers` to layer on
+  their own policies
+
 That gives packages like `fgof-lineedit` a clean way to consume normalized key
 events without depending on raw terminal escape parsing.
 
@@ -159,6 +169,17 @@ fpm test
 ```
 
 That is the baseline verification command locally and in CI.
+
+## Release Checklist
+
+Before `v0.1.0`, the package should satisfy this bar:
+
+- `fpm test` is green locally
+- tracked examples build and run cleanly
+- GitHub Actions is green on macOS and Linux
+- README examples and public API lists match the shipped surface
+- decoder behavior for partial escape input, modified text, and paste payloads
+  is covered by tests
 
 ## Supported Platforms
 
