@@ -2,6 +2,11 @@ module fgof_keys_types
   implicit none
   private
 
+  public :: FGOF_KEY_EVENT_NAMED
+  public :: FGOF_KEY_EVENT_NONE
+  public :: FGOF_KEY_EVENT_PASTE
+  public :: FGOF_KEY_EVENT_PRINTABLE
+  public :: FGOF_KEY_EVENT_UNKNOWN
   public :: FGOF_KEY_BACKSPACE
   public :: FGOF_KEY_DELETE
   public :: FGOF_KEY_DOWN
@@ -15,8 +20,15 @@ module fgof_keys_types
   public :: FGOF_KEY_RIGHT
   public :: FGOF_KEY_TAB
   public :: FGOF_KEY_UP
+  public :: key_decoder_state
   public :: key_event
   public :: key_modifiers
+
+  integer, parameter :: FGOF_KEY_EVENT_NONE = 0
+  integer, parameter :: FGOF_KEY_EVENT_PRINTABLE = 1
+  integer, parameter :: FGOF_KEY_EVENT_NAMED = 2
+  integer, parameter :: FGOF_KEY_EVENT_PASTE = 3
+  integer, parameter :: FGOF_KEY_EVENT_UNKNOWN = 4
 
   character(len=*), parameter :: FGOF_KEY_UP = "up"
   character(len=*), parameter :: FGOF_KEY_DOWN = "down"
@@ -40,12 +52,22 @@ module fgof_keys_types
   end type key_modifiers
 
   type :: key_event
+    integer :: kind = FGOF_KEY_EVENT_NONE
     character(len=:), allocatable :: text
     character(len=:), allocatable :: key_name
+    character(len=:), allocatable :: raw_bytes
     type(key_modifiers) :: modifiers
     logical :: recognized = .false.
     logical :: printable = .false.
     logical :: escape_sequence = .false.
+    logical :: paste = .false.
+    logical :: incomplete = .false.
   end type key_event
+
+  type :: key_decoder_state
+    character(len=:), allocatable :: pending_bytes
+    logical :: escape_pending = .false.
+    logical :: bracketed_paste_active = .false.
+  end type key_decoder_state
 
 end module fgof_keys_types
