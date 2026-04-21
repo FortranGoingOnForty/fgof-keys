@@ -29,8 +29,10 @@ Initial scaffold is in place.
 Implemented today:
 
 - public `fgof_keys` and `fgof_keys_types` modules
-- stable event and modifier types
+- stable event, modifier, and decoder-state types
+- explicit event-kind constants for printable, named, paste, and unknown flows
 - small constructor helpers for printable and named key events
+- pending-input buffering helpers for partial escape-sequence decoding
 - CI and `fpm test` baseline wiring
 
 Still to implement:
@@ -59,6 +61,7 @@ Public types:
 
 - `key_event`
 - `key_modifiers`
+- `key_decoder_state`
 
 Public constants:
 
@@ -78,20 +81,28 @@ Public constants:
 
 Current public procedures:
 
+- `buffer_input`
 - `clear_event`
+- `clear_decoder_state`
+- `has_pending_input`
+- `mark_escape_pending`
 - `named_key_event`
 - `printable_key_event`
+- `take_pending_input`
 
 ## Quick Start
 
 ```fortran
 program demo_keys
-  use fgof_keys, only : named_key_event, printable_key_event
-  use fgof_keys_types, only : key_event
+  use fgof_keys, only : buffer_input, clear_decoder_state, named_key_event, printable_key_event
+  use fgof_keys_types, only : key_decoder_state, key_event
   implicit none
 
+  type(key_decoder_state) :: state
   type(key_event) :: key
 
+  state = clear_decoder_state()
+  call buffer_input(state, achar(27) // "[")
   key = printable_key_event("a")
   key = named_key_event("up")
 end program demo_keys
