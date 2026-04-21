@@ -13,7 +13,12 @@ module fgof_keys_types
   public :: FGOF_KEY_END
   public :: FGOF_KEY_ENTER
   public :: FGOF_KEY_ESCAPE
+  public :: FGOF_KEY_F1
+  public :: FGOF_KEY_F2
+  public :: FGOF_KEY_F3
+  public :: FGOF_KEY_F4
   public :: FGOF_KEY_HOME
+  public :: FGOF_KEY_INSERT
   public :: FGOF_KEY_LEFT
   public :: FGOF_KEY_PAGEDOWN
   public :: FGOF_KEY_PAGEUP
@@ -42,7 +47,12 @@ module fgof_keys_types
   character(len=*), parameter :: FGOF_KEY_ESCAPE = "escape"
   character(len=*), parameter :: FGOF_KEY_TAB = "tab"
   character(len=*), parameter :: FGOF_KEY_BACKSPACE = "backspace"
+  character(len=*), parameter :: FGOF_KEY_INSERT = "insert"
   character(len=*), parameter :: FGOF_KEY_DELETE = "delete"
+  character(len=*), parameter :: FGOF_KEY_F1 = "f1"
+  character(len=*), parameter :: FGOF_KEY_F2 = "f2"
+  character(len=*), parameter :: FGOF_KEY_F3 = "f3"
+  character(len=*), parameter :: FGOF_KEY_F4 = "f4"
 
   type :: key_modifiers
     logical :: shift = .false.

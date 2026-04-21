@@ -11,7 +11,7 @@ program test_decode_core
   call test_decode_unknown_control()
   call test_decode_escape_as_pending()
   call test_decode_escape_key_then_plain_byte()
-  call test_leave_csi_prefix_buffered()
+  call test_leave_partial_csi_prefix_buffered()
 
 contains
 
@@ -117,21 +117,21 @@ contains
     call require(.not. has_pending_input(state), "follow-up decode should drain the buffer")
   end subroutine test_decode_escape_key_then_plain_byte
 
-  subroutine test_leave_csi_prefix_buffered()
+  subroutine test_leave_partial_csi_prefix_buffered()
     type(key_decoder_state) :: state
     type(key_event) :: event
 
     state = clear_decoder_state()
-    event = decode_bytes(state, achar(27) // "[A")
+    event = decode_bytes(state, achar(27) // "[")
 
-    call require(event%incomplete, "CSI prefixes should remain incomplete until Sprint 03 decoding lands")
-    call require(event%escape_sequence, "CSI prefixes should mark escape-sequence state")
-    call require(state%escape_pending, "CSI prefixes should keep escape_pending true")
-    call require(has_pending_input(state), "CSI prefixes should stay buffered")
+    call require(event%incomplete, "partial CSI prefixes should remain incomplete")
+    call require(event%escape_sequence, "partial CSI prefixes should mark escape-sequence state")
+    call require(state%escape_pending, "partial CSI prefixes should keep escape_pending true")
+    call require(has_pending_input(state), "partial CSI prefixes should stay buffered")
 
     event = decode_next_event(state)
-    call require(event%incomplete, "re-decoding an untouched CSI prefix should stay incomplete")
-    call require(has_pending_input(state), "re-decoding should not drop CSI bytes early")
-  end subroutine test_leave_csi_prefix_buffered
+    call require(event%incomplete, "re-decoding an untouched partial CSI prefix should stay incomplete")
+    call require(has_pending_input(state), "re-decoding should not drop partial CSI bytes early")
+  end subroutine test_leave_partial_csi_prefix_buffered
 
 end program test_decode_core

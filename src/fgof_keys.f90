@@ -1,7 +1,10 @@
 module fgof_keys
-  use fgof_keys_types, only : FGOF_KEY_BACKSPACE, FGOF_KEY_ENTER, FGOF_KEY_ESCAPE, FGOF_KEY_EVENT_NAMED, &
-                              FGOF_KEY_EVENT_NONE, FGOF_KEY_EVENT_PRINTABLE, FGOF_KEY_EVENT_UNKNOWN, &
-                              FGOF_KEY_TAB, key_decoder_state, key_event, key_modifiers
+  use fgof_keys_types, only : FGOF_KEY_BACKSPACE, FGOF_KEY_DELETE, FGOF_KEY_DOWN, FGOF_KEY_END, &
+                              FGOF_KEY_ENTER, FGOF_KEY_ESCAPE, FGOF_KEY_EVENT_NAMED, FGOF_KEY_EVENT_NONE, &
+                              FGOF_KEY_EVENT_PRINTABLE, FGOF_KEY_EVENT_UNKNOWN, FGOF_KEY_F1, FGOF_KEY_F2, &
+                              FGOF_KEY_F3, FGOF_KEY_F4, FGOF_KEY_HOME, FGOF_KEY_INSERT, FGOF_KEY_LEFT, &
+                              FGOF_KEY_PAGEDOWN, FGOF_KEY_PAGEUP, FGOF_KEY_RIGHT, FGOF_KEY_TAB, FGOF_KEY_UP, &
+                              key_decoder_state, key_event, key_modifiers
   implicit none
   private
 
@@ -153,9 +156,13 @@ contains
         return
       end if
 
-      if (bytes(2:2) == "[" .or. bytes(2:2) == "O") then
-        event = incomplete_key_event(bytes, escape_sequence=.true.)
-        state%escape_pending = .true.
+      if (bytes(2:2) == "[") then
+        event = decode_csi_or_incomplete(state, bytes)
+        return
+      end if
+
+      if (bytes(2:2) == "O") then
+        event = decode_ss3_or_incomplete(state, bytes)
         return
       end if
 
@@ -211,5 +218,186 @@ contains
       state%pending_bytes = state%pending_bytes(count + 1:)
     end if
   end subroutine consume_pending_bytes
+
+  function decode_csi_or_incomplete(state, bytes) result(event)
+    type(key_decoder_state), intent(inout) :: state
+    character(len=*), intent(in) :: bytes
+    type(key_event) :: event
+
+    integer :: sequence_length
+
+    sequence_length = csi_sequence_length(bytes)
+    if (sequence_length == 0) then
+      event = incomplete_key_event(bytes, escape_sequence=.true.)
+      state%escape_pending = .true.
+      return
+    end if
+
+    event = decode_csi_sequence(bytes(:sequence_length))
+    call consume_pending_bytes(state, sequence_length)
+    state%escape_pending = .false.
+  end function decode_csi_or_incomplete
+
+  function decode_ss3_or_incomplete(state, bytes) result(event)
+    type(key_decoder_state), intent(inout) :: state
+    character(len=*), intent(in) :: bytes
+    type(key_event) :: event
+
+    integer :: sequence_length
+
+    sequence_length = ss3_sequence_length(bytes)
+    if (sequence_length == 0) then
+      event = incomplete_key_event(bytes, escape_sequence=.true.)
+      state%escape_pending = .true.
+      return
+    end if
+
+    event = decode_ss3_sequence(bytes(:sequence_length))
+    call consume_pending_bytes(state, sequence_length)
+    state%escape_pending = .false.
+  end function decode_ss3_or_incomplete
+
+  pure integer function csi_sequence_length(bytes)
+    character(len=*), intent(in) :: bytes
+
+    integer :: i
+
+    csi_sequence_length = 0
+    if (len(bytes) < 3) return
+
+    do i = 3, len(bytes)
+      if (is_csi_final(bytes(i:i))) then
+        csi_sequence_length = i
+        return
+      end if
+    end do
+  end function csi_sequence_length
+
+  pure integer function ss3_sequence_length(bytes)
+    character(len=*), intent(in) :: bytes
+
+    ss3_sequence_length = 0
+    if (len(bytes) < 3) return
+    if (is_csi_final(bytes(3:3))) ss3_sequence_length = 3
+  end function ss3_sequence_length
+
+  pure logical function is_csi_final(byte)
+    character(len=1), intent(in) :: byte
+    integer :: code
+
+    code = iachar(byte)
+    is_csi_final = code >= 64 .and. code <= 126
+  end function is_csi_final
+
+  pure function decode_csi_sequence(sequence) result(event)
+    character(len=*), intent(in) :: sequence
+    type(key_event) :: event
+
+    character(len=1) :: final_byte
+    character(len=:), allocatable :: parameters
+
+    final_byte = sequence(len(sequence):len(sequence))
+    if (len(sequence) > 3) then
+      parameters = sequence(3:len(sequence) - 1)
+    else
+      parameters = ""
+    end if
+
+    select case (final_byte)
+    case ("A")
+      event = named_key_event(FGOF_KEY_UP, raw_bytes=sequence, escape_sequence=.true.)
+    case ("B")
+      event = named_key_event(FGOF_KEY_DOWN, raw_bytes=sequence, escape_sequence=.true.)
+    case ("C")
+      event = named_key_event(FGOF_KEY_RIGHT, raw_bytes=sequence, escape_sequence=.true.)
+    case ("D")
+      event = named_key_event(FGOF_KEY_LEFT, raw_bytes=sequence, escape_sequence=.true.)
+    case ("F")
+      event = named_key_event(FGOF_KEY_END, raw_bytes=sequence, escape_sequence=.true.)
+    case ("H")
+      event = named_key_event(FGOF_KEY_HOME, raw_bytes=sequence, escape_sequence=.true.)
+    case ("~")
+      event = decode_csi_tilde_sequence(parameters, sequence)
+    case default
+      event = unknown_key_event(sequence, escape_sequence=.true.)
+    end select
+  end function decode_csi_sequence
+
+  pure function decode_csi_tilde_sequence(parameters, sequence) result(event)
+    character(len=*), intent(in) :: parameters
+    character(len=*), intent(in) :: sequence
+    type(key_event) :: event
+
+    integer :: code
+
+    code = first_csi_parameter(parameters)
+    select case (code)
+    case (1, 7)
+      event = named_key_event(FGOF_KEY_HOME, raw_bytes=sequence, escape_sequence=.true.)
+    case (2)
+      event = named_key_event(FGOF_KEY_INSERT, raw_bytes=sequence, escape_sequence=.true.)
+    case (3)
+      event = named_key_event(FGOF_KEY_DELETE, raw_bytes=sequence, escape_sequence=.true.)
+    case (4, 8)
+      event = named_key_event(FGOF_KEY_END, raw_bytes=sequence, escape_sequence=.true.)
+    case (5)
+      event = named_key_event(FGOF_KEY_PAGEUP, raw_bytes=sequence, escape_sequence=.true.)
+    case (6)
+      event = named_key_event(FGOF_KEY_PAGEDOWN, raw_bytes=sequence, escape_sequence=.true.)
+    case default
+      event = unknown_key_event(sequence, escape_sequence=.true.)
+    end select
+  end function decode_csi_tilde_sequence
+
+  pure integer function first_csi_parameter(parameters)
+    character(len=*), intent(in) :: parameters
+
+    integer :: i
+    integer :: digit
+
+    first_csi_parameter = -1
+    if (len(parameters) == 0) return
+
+    first_csi_parameter = 0
+    do i = 1, len(parameters)
+      if (parameters(i:i) == ";") exit
+      digit = iachar(parameters(i:i)) - iachar("0")
+      if (digit < 0 .or. digit > 9) then
+        first_csi_parameter = -1
+        return
+      end if
+      first_csi_parameter = first_csi_parameter * 10 + digit
+    end do
+  end function first_csi_parameter
+
+  pure function decode_ss3_sequence(sequence) result(event)
+    character(len=*), intent(in) :: sequence
+    type(key_event) :: event
+
+    select case (sequence(3:3))
+    case ("A")
+      event = named_key_event(FGOF_KEY_UP, raw_bytes=sequence, escape_sequence=.true.)
+    case ("B")
+      event = named_key_event(FGOF_KEY_DOWN, raw_bytes=sequence, escape_sequence=.true.)
+    case ("C")
+      event = named_key_event(FGOF_KEY_RIGHT, raw_bytes=sequence, escape_sequence=.true.)
+    case ("D")
+      event = named_key_event(FGOF_KEY_LEFT, raw_bytes=sequence, escape_sequence=.true.)
+    case ("F")
+      event = named_key_event(FGOF_KEY_END, raw_bytes=sequence, escape_sequence=.true.)
+    case ("H")
+      event = named_key_event(FGOF_KEY_HOME, raw_bytes=sequence, escape_sequence=.true.)
+    case ("P")
+      event = named_key_event(FGOF_KEY_F1, raw_bytes=sequence, escape_sequence=.true.)
+    case ("Q")
+      event = named_key_event(FGOF_KEY_F2, raw_bytes=sequence, escape_sequence=.true.)
+    case ("R")
+      event = named_key_event(FGOF_KEY_F3, raw_bytes=sequence, escape_sequence=.true.)
+    case ("S")
+      event = named_key_event(FGOF_KEY_F4, raw_bytes=sequence, escape_sequence=.true.)
+    case default
+      event = unknown_key_event(sequence, escape_sequence=.true.)
+    end select
+  end function decode_ss3_sequence
 
 end module fgof_keys
