@@ -34,12 +34,12 @@ Implemented today:
 - small constructor helpers for printable and named key events
 - pending-input buffering helpers for partial escape-sequence decoding
 - printable-byte and single-byte control-key decoding
-- incomplete buffering for bare `ESC` and CSI or SS3 prefixes
+- CSI and SS3 decoding for arrows, home/end, page keys, insert/delete, and `F1`-`F4`
+- incomplete buffering for bare `ESC` and partial CSI or SS3 prefixes
 - CI and `fpm test` baseline wiring
 
 Still to implement:
 
-- CSI and SS3 escape parsing
 - modifier-rich named key normalization
 - bracketed paste handling
 - integration examples with `fgof-termios` and `fgof-lineedit`
@@ -78,7 +78,12 @@ Public constants:
 - `FGOF_KEY_ESCAPE`
 - `FGOF_KEY_TAB`
 - `FGOF_KEY_BACKSPACE`
+- `FGOF_KEY_INSERT`
 - `FGOF_KEY_DELETE`
+- `FGOF_KEY_F1`
+- `FGOF_KEY_F2`
+- `FGOF_KEY_F3`
+- `FGOF_KEY_F4`
 
 Current public procedures:
 
@@ -99,15 +104,17 @@ Current public procedures:
 ```fortran
 program demo_keys
   use fgof_keys, only : clear_decoder_state, decode_bytes
-  use fgof_keys_types, only : key_decoder_state, key_event
+  use fgof_keys_types, only : FGOF_KEY_UP, key_decoder_state, key_event
   implicit none
 
   type(key_decoder_state) :: state
   type(key_event) :: key
 
   state = clear_decoder_state()
-  key = decode_bytes(state, "a")
-  key = decode_bytes(state, achar(9))
+  key = decode_bytes(state, achar(27) // "[A")
+  if (key%key_name == FGOF_KEY_UP) then
+    key = decode_bytes(state, "a")
+  end if
 end program demo_keys
 ```
 
