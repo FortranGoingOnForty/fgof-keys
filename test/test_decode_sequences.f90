@@ -1,6 +1,6 @@
 program test_decode_sequences
   use fgof_keys, only : clear_decoder_state, decode_bytes, decode_next_event, has_pending_input
-  use fgof_keys_types, only : FGOF_KEY_DELETE, FGOF_KEY_END, FGOF_KEY_F1, FGOF_KEY_HOME, &
+  use fgof_keys_types, only : FGOF_KEY_DELETE, FGOF_KEY_END, FGOF_KEY_EVENT_PASTE, FGOF_KEY_F1, FGOF_KEY_HOME, &
                               FGOF_KEY_INSERT, FGOF_KEY_LEFT, FGOF_KEY_PAGEDOWN, FGOF_KEY_PAGEUP, &
                               FGOF_KEY_RIGHT, FGOF_KEY_UP, key_decoder_state, key_event
   implicit none
@@ -10,7 +10,10 @@ program test_decode_sequences
   call test_decode_csi_navigation()
   call test_decode_ss3_navigation()
   call test_decode_ss3_function_key()
-  call test_decode_modifier_csi_without_modifiers_yet()
+  call test_decode_modifier_csi_arrow()
+  call test_decode_modifier_csi_tilde()
+  call test_decode_bracketed_paste()
+  call test_decode_split_bracketed_paste()
   call test_keep_partial_csi_buffered()
 
 contains
@@ -104,7 +107,7 @@ contains
     call require(event%key_name == FGOF_KEY_F1, "SS3 P should map to f1")
   end subroutine test_decode_ss3_function_key
 
-  subroutine test_decode_modifier_csi_without_modifiers_yet()
+  subroutine test_decode_modifier_csi_arrow()
     type(key_decoder_state) :: state
     type(key_event) :: event
 
@@ -112,8 +115,55 @@ contains
     event = decode_bytes(state, achar(27) // "[1;5A")
     call require(event%recognized, "parameterized CSI arrows should already decode")
     call require(event%key_name == FGOF_KEY_UP, "parameterized CSI A should still map to up")
-    call require(.not. event%modifiers%ctrl, "modifier normalization should remain deferred for now")
-  end subroutine test_decode_modifier_csi_without_modifiers_yet
+    call require(event%modifiers%ctrl, "CSI 1;5A should set ctrl")
+    call require(.not. event%modifiers%shift, "CSI 1;5A should not set shift")
+  end subroutine test_decode_modifier_csi_arrow
+
+  subroutine test_decode_modifier_csi_tilde()
+    type(key_decoder_state) :: state
+    type(key_event) :: event
+
+    state = clear_decoder_state()
+    event = decode_bytes(state, achar(27) // "[5;2~")
+    call require(event%recognized, "parameterized CSI tilde keys should decode")
+    call require(event%key_name == FGOF_KEY_PAGEUP, "CSI 5;2~ should map to pageup")
+    call require(event%modifiers%shift, "CSI 5;2~ should set shift")
+    call require(.not. event%modifiers%ctrl, "CSI 5;2~ should not set ctrl")
+  end subroutine test_decode_modifier_csi_tilde
+
+  subroutine test_decode_bracketed_paste()
+    type(key_decoder_state) :: state
+    type(key_event) :: event
+
+    state = clear_decoder_state()
+    event = decode_bytes(state, achar(27) // "[200~hello" // achar(27) // "[201~")
+
+    call require(event%recognized, "complete bracketed paste should decode as recognized")
+    call require(event%paste, "complete bracketed paste should mark paste events")
+    call require(event%kind == FGOF_KEY_EVENT_PASTE, "complete bracketed paste should use paste kind")
+    call require(event%text == "hello", "paste payload should preserve pasted text")
+    call require(.not. has_pending_input(state), "complete bracketed paste should drain the buffer")
+    call require(.not. state%bracketed_paste_active, "complete bracketed paste should clear active paste state")
+  end subroutine test_decode_bracketed_paste
+
+  subroutine test_decode_split_bracketed_paste()
+    type(key_decoder_state) :: state
+    type(key_event) :: event
+
+    state = clear_decoder_state()
+    event = decode_bytes(state, achar(27) // "[200~he")
+    call require(event%incomplete, "partial bracketed paste should remain incomplete")
+    call require(event%paste, "partial bracketed paste should still identify as paste")
+    call require(state%bracketed_paste_active, "partial paste should keep paste mode active")
+    call require(has_pending_input(state), "partial paste payload should stay buffered")
+
+    event = decode_bytes(state, "llo" // achar(27) // "[201~")
+    call require(event%recognized, "completed split paste should decode as recognized")
+    call require(event%paste, "completed split paste should remain a paste event")
+    call require(event%text == "hello", "split paste should preserve full payload")
+    call require(.not. state%bracketed_paste_active, "completed split paste should clear paste mode")
+    call require(.not. has_pending_input(state), "completed split paste should drain the buffer")
+  end subroutine test_decode_split_bracketed_paste
 
   subroutine test_keep_partial_csi_buffered()
     type(key_decoder_state) :: state

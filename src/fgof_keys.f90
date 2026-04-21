@@ -1,10 +1,11 @@
 module fgof_keys
   use fgof_keys_types, only : FGOF_KEY_BACKSPACE, FGOF_KEY_DELETE, FGOF_KEY_DOWN, FGOF_KEY_END, &
                               FGOF_KEY_ENTER, FGOF_KEY_ESCAPE, FGOF_KEY_EVENT_NAMED, FGOF_KEY_EVENT_NONE, &
-                              FGOF_KEY_EVENT_PRINTABLE, FGOF_KEY_EVENT_UNKNOWN, FGOF_KEY_F1, FGOF_KEY_F2, &
-                              FGOF_KEY_F3, FGOF_KEY_F4, FGOF_KEY_HOME, FGOF_KEY_INSERT, FGOF_KEY_LEFT, &
-                              FGOF_KEY_PAGEDOWN, FGOF_KEY_PAGEUP, FGOF_KEY_RIGHT, FGOF_KEY_TAB, FGOF_KEY_UP, &
-                              key_decoder_state, key_event, key_modifiers
+                              FGOF_KEY_EVENT_PASTE, FGOF_KEY_EVENT_PRINTABLE, FGOF_KEY_EVENT_UNKNOWN, &
+                              FGOF_KEY_F1, FGOF_KEY_F2, FGOF_KEY_F3, FGOF_KEY_F4, FGOF_KEY_HOME, &
+                              FGOF_KEY_INSERT, FGOF_KEY_LEFT, FGOF_KEY_PAGEDOWN, FGOF_KEY_PAGEUP, &
+                              FGOF_KEY_RIGHT, FGOF_KEY_TAB, FGOF_KEY_UP, key_decoder_state, key_event, &
+                              key_modifiers
   implicit none
   private
 
@@ -16,6 +17,7 @@ module fgof_keys
   public :: has_pending_input
   public :: mark_escape_pending
   public :: named_key_event
+  public :: paste_key_event
   public :: printable_key_event
   public :: take_pending_input
   public :: unknown_key_event
@@ -71,6 +73,23 @@ contains
       event%escape_sequence = escape_sequence
     end if
   end function named_key_event
+
+  pure function paste_key_event(text, raw_bytes) result(event)
+    character(len=*), intent(in) :: text
+    character(len=*), intent(in), optional :: raw_bytes
+    type(key_event) :: event
+
+    event = clear_event()
+    event%kind = FGOF_KEY_EVENT_PASTE
+    event%text = text
+    if (present(raw_bytes)) then
+      event%raw_bytes = raw_bytes
+    else
+      event%raw_bytes = text
+    end if
+    event%recognized = .true.
+    event%paste = .true.
+  end function paste_key_event
 
   pure function unknown_key_event(raw_bytes, escape_sequence) result(event)
     character(len=*), intent(in) :: raw_bytes
@@ -144,6 +163,11 @@ contains
     event = clear_event()
     if (.not. has_pending_input(state)) return
 
+    if (state%bracketed_paste_active) then
+      event = decode_bracketed_paste_or_incomplete(state)
+      return
+    end if
+
     bytes = state%pending_bytes
     first_byte = bytes(1:1)
     byte_code = iachar(first_byte)
@@ -203,6 +227,17 @@ contains
     if (present(escape_sequence)) event%escape_sequence = escape_sequence
   end function incomplete_key_event
 
+  pure function incomplete_paste_event(raw_bytes) result(event)
+    character(len=*), intent(in) :: raw_bytes
+    type(key_event) :: event
+
+    event = clear_event()
+    event%kind = FGOF_KEY_EVENT_PASTE
+    event%raw_bytes = raw_bytes
+    event%paste = .true.
+    event%incomplete = .true.
+  end function incomplete_paste_event
+
   subroutine consume_pending_bytes(state, count)
     type(key_decoder_state), intent(inout) :: state
     integer, intent(in) :: count
@@ -233,7 +268,15 @@ contains
       return
     end if
 
-    event = decode_csi_sequence(bytes(:sequence_length))
+    event = decode_csi_sequence(bytes(:sequence_length), state)
+    if (state%bracketed_paste_active) then
+      if (has_pending_input(state)) then
+        event = decode_bracketed_paste_or_incomplete(state)
+      else
+        event = incomplete_paste_event("")
+      end if
+      return
+    end if
     call consume_pending_bytes(state, sequence_length)
     state%escape_pending = .false.
   end function decode_csi_or_incomplete
@@ -289,12 +332,15 @@ contains
     is_csi_final = code >= 64 .and. code <= 126
   end function is_csi_final
 
-  pure function decode_csi_sequence(sequence) result(event)
+  function decode_csi_sequence(sequence, state) result(event)
     character(len=*), intent(in) :: sequence
+    type(key_decoder_state), intent(inout) :: state
     type(key_event) :: event
 
     character(len=1) :: final_byte
     character(len=:), allocatable :: parameters
+    type(key_modifiers) :: modifiers
+    integer :: first_parameter
 
     final_byte = sequence(len(sequence):len(sequence))
     if (len(sequence) > 3) then
@@ -302,30 +348,40 @@ contains
     else
       parameters = ""
     end if
+    modifiers = csi_modifiers(parameters)
+    first_parameter = first_csi_parameter(parameters)
 
     select case (final_byte)
     case ("A")
-      event = named_key_event(FGOF_KEY_UP, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_UP, modifiers, sequence, .true.)
     case ("B")
-      event = named_key_event(FGOF_KEY_DOWN, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_DOWN, modifiers, sequence, .true.)
     case ("C")
-      event = named_key_event(FGOF_KEY_RIGHT, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_RIGHT, modifiers, sequence, .true.)
     case ("D")
-      event = named_key_event(FGOF_KEY_LEFT, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_LEFT, modifiers, sequence, .true.)
     case ("F")
-      event = named_key_event(FGOF_KEY_END, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_END, modifiers, sequence, .true.)
     case ("H")
-      event = named_key_event(FGOF_KEY_HOME, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_HOME, modifiers, sequence, .true.)
     case ("~")
-      event = decode_csi_tilde_sequence(parameters, sequence)
+      if (first_parameter == 200) then
+        call consume_pending_bytes(state, len(sequence))
+        state%bracketed_paste_active = .true.
+        state%escape_pending = .false.
+        event = incomplete_paste_event("")
+      else
+        event = decode_csi_tilde_sequence(parameters, sequence, modifiers)
+      end if
     case default
       event = unknown_key_event(sequence, escape_sequence=.true.)
     end select
   end function decode_csi_sequence
 
-  pure function decode_csi_tilde_sequence(parameters, sequence) result(event)
+  pure function decode_csi_tilde_sequence(parameters, sequence, modifiers) result(event)
     character(len=*), intent(in) :: parameters
     character(len=*), intent(in) :: sequence
+    type(key_modifiers), intent(in) :: modifiers
     type(key_event) :: event
 
     integer :: code
@@ -333,17 +389,17 @@ contains
     code = first_csi_parameter(parameters)
     select case (code)
     case (1, 7)
-      event = named_key_event(FGOF_KEY_HOME, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_HOME, modifiers, sequence, .true.)
     case (2)
-      event = named_key_event(FGOF_KEY_INSERT, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_INSERT, modifiers, sequence, .true.)
     case (3)
-      event = named_key_event(FGOF_KEY_DELETE, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_DELETE, modifiers, sequence, .true.)
     case (4, 8)
-      event = named_key_event(FGOF_KEY_END, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_END, modifiers, sequence, .true.)
     case (5)
-      event = named_key_event(FGOF_KEY_PAGEUP, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_PAGEUP, modifiers, sequence, .true.)
     case (6)
-      event = named_key_event(FGOF_KEY_PAGEDOWN, raw_bytes=sequence, escape_sequence=.true.)
+      event = named_key_event(FGOF_KEY_PAGEDOWN, modifiers, sequence, .true.)
     case default
       event = unknown_key_event(sequence, escape_sequence=.true.)
     end select
@@ -369,6 +425,94 @@ contains
       first_csi_parameter = first_csi_parameter * 10 + digit
     end do
   end function first_csi_parameter
+
+  pure integer function second_csi_parameter(parameters)
+    character(len=*), intent(in) :: parameters
+
+    integer :: i
+    integer :: digit
+    logical :: after_separator
+
+    second_csi_parameter = -1
+    if (len(parameters) == 0) return
+
+    after_separator = .false.
+    do i = 1, len(parameters)
+      if (.not. after_separator) then
+        if (parameters(i:i) == ";") then
+          after_separator = .true.
+          second_csi_parameter = 0
+        end if
+        cycle
+      end if
+
+      if (parameters(i:i) == ";") exit
+      digit = iachar(parameters(i:i)) - iachar("0")
+      if (digit < 0 .or. digit > 9) then
+        second_csi_parameter = -1
+        return
+      end if
+      second_csi_parameter = second_csi_parameter * 10 + digit
+    end do
+  end function second_csi_parameter
+
+  pure function csi_modifiers(parameters) result(modifiers)
+    character(len=*), intent(in) :: parameters
+    type(key_modifiers) :: modifiers
+
+    integer :: code
+
+    code = second_csi_parameter(parameters)
+    select case (code)
+    case (2)
+      modifiers%shift = .true.
+    case (3)
+      modifiers%alt = .true.
+    case (4)
+      modifiers%shift = .true.
+      modifiers%alt = .true.
+    case (5)
+      modifiers%ctrl = .true.
+    case (6)
+      modifiers%shift = .true.
+      modifiers%ctrl = .true.
+    case (7)
+      modifiers%alt = .true.
+      modifiers%ctrl = .true.
+    case (8)
+      modifiers%shift = .true.
+      modifiers%alt = .true.
+      modifiers%ctrl = .true.
+    case (9)
+      modifiers%super = .true.
+    case (10)
+      modifiers%shift = .true.
+      modifiers%super = .true.
+    case (11)
+      modifiers%alt = .true.
+      modifiers%super = .true.
+    case (12)
+      modifiers%shift = .true.
+      modifiers%alt = .true.
+      modifiers%super = .true.
+    case (13)
+      modifiers%ctrl = .true.
+      modifiers%super = .true.
+    case (14)
+      modifiers%shift = .true.
+      modifiers%ctrl = .true.
+      modifiers%super = .true.
+    case (15)
+      modifiers%alt = .true.
+      modifiers%ctrl = .true.
+      modifiers%super = .true.
+    case (16)
+      modifiers%shift = .true.
+      modifiers%alt = .true.
+      modifiers%ctrl = .true.
+      modifiers%super = .true.
+    end select
+  end function csi_modifiers
 
   pure function decode_ss3_sequence(sequence) result(event)
     character(len=*), intent(in) :: sequence
@@ -399,5 +543,33 @@ contains
       event = unknown_key_event(sequence, escape_sequence=.true.)
     end select
   end function decode_ss3_sequence
+
+  function decode_bracketed_paste_or_incomplete(state) result(event)
+    type(key_decoder_state), intent(inout) :: state
+    type(key_event) :: event
+
+    character(len=*), parameter :: end_marker = achar(27) // "[201~"
+    integer :: marker_index
+    character(len=:), allocatable :: payload
+    character(len=:), allocatable :: raw_bytes
+
+    marker_index = index(state%pending_bytes, end_marker)
+    if (marker_index == 0) then
+      event = incomplete_paste_event(state%pending_bytes)
+      return
+    end if
+
+    if (marker_index > 1) then
+      payload = state%pending_bytes(:marker_index - 1)
+    else
+      payload = ""
+    end if
+    raw_bytes = payload // end_marker
+
+    event = paste_key_event(payload, raw_bytes)
+    call consume_pending_bytes(state, len(raw_bytes))
+    state%bracketed_paste_active = .false.
+    state%escape_pending = .false.
+  end function decode_bracketed_paste_or_incomplete
 
 end module fgof_keys
