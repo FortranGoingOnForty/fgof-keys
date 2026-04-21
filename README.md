@@ -60,6 +60,22 @@ Public types:
 - `key_event`
 - `key_modifiers`
 
+Public constants:
+
+- `FGOF_KEY_UP`
+- `FGOF_KEY_DOWN`
+- `FGOF_KEY_LEFT`
+- `FGOF_KEY_RIGHT`
+- `FGOF_KEY_HOME`
+- `FGOF_KEY_END`
+- `FGOF_KEY_PAGEUP`
+- `FGOF_KEY_PAGEDOWN`
+- `FGOF_KEY_ENTER`
+- `FGOF_KEY_ESCAPE`
+- `FGOF_KEY_TAB`
+- `FGOF_KEY_BACKSPACE`
+- `FGOF_KEY_DELETE`
+
 Current public procedures:
 
 - `clear_event`

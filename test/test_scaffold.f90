@@ -1,9 +1,10 @@
 program test_scaffold
   use fgof_keys, only : clear_event, named_key_event, printable_key_event
-  use fgof_keys_types, only : key_event, key_modifiers
+  use fgof_keys_types, only : FGOF_KEY_UP, key_event, key_modifiers
   implicit none
 
   call test_clear_event()
+  call test_key_constants()
   call test_printable_key_event()
   call test_named_key_event()
 
@@ -27,6 +28,10 @@ contains
     call require(.not. event%printable, "clear_event should not be printable")
     call require(.not. event%escape_sequence, "clear_event should not mark escape sequences")
   end subroutine test_clear_event
+
+  subroutine test_key_constants()
+    call require(FGOF_KEY_UP == "up", "key constants should expose stable canonical names")
+  end subroutine test_key_constants
 
   subroutine test_printable_key_event()
     type(key_event) :: event
