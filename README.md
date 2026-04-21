@@ -19,12 +19,12 @@ Current v1 target:
 Future scope:
 
 - richer terminal capability detection
-- tighter line-edit integration examples
+- richer key-to-editor mapping policies for app-specific workflows
 - higher-level screen composition in a future `fgof-screen`
 
 ## Status
 
-Initial scaffold is in place.
+Core decoding and integration helpers are in place.
 
 Implemented today:
 
@@ -38,11 +38,10 @@ Implemented today:
 - modifier normalization for common parameterized CSI key sequences
 - bracketed paste handling as a dedicated paste event
 - incomplete buffering for bare `ESC` and partial CSI or SS3 prefixes
+- editor-facing helpers with `editor_action_for_key()` and `event_text()`
+- tracked examples showing `fgof-keys` composed with `fgof-lineedit`
+  and `fgof-termios`
 - CI and `fpm test` baseline wiring
-
-Still to implement:
-
-- integration examples with `fgof-termios` and `fgof-lineedit`
 
 ## Why Use It
 
@@ -92,6 +91,8 @@ Current public procedures:
 - `clear_decoder_state`
 - `decode_bytes`
 - `decode_next_event`
+- `editor_action_for_key`
+- `event_text`
 - `has_pending_input`
 - `mark_escape_pending`
 - `named_key_event`
@@ -123,6 +124,34 @@ program demo_keys
 end program demo_keys
 ```
 
+## Integration Helpers
+
+`fgof-keys` stays focused on decoding, but it now ships a small bridge layer for
+editor-style consumers:
+
+- `editor_action_for_key(event)` maps common normalized keys onto generic editor
+  actions like insert, move, delete, history previous or next, accept line, and
+  complete
+- `event_text(event)` returns the printable or paste payload for insert-style
+  flows and `""` for non-text events
+
+That gives packages like `fgof-lineedit` a clean way to consume normalized key
+events without depending on raw terminal escape parsing.
+
+## Examples
+
+Two tracked examples ship with the package:
+
+- `lineedit_bridge`
+  - shows `fgof-keys` decoding into editor-oriented actions that a
+    `fgof-lineedit` state can consume
+- `termios_setup_demo`
+  - shows the intended composition with `fgof-termios` for raw-mode setup
+    before decoding terminal bytes
+
+These examples use package dev dependencies and are compiled as part of the
+normal package build and test flow.
+
 ## Build And Test
 
 ```bash
@@ -147,6 +176,8 @@ That is the baseline verification command locally and in CI.
 - `fgof-termios` should own raw or cbreak mode transitions
 - `fgof-pty` should own PTY lifecycle and transport
 - `fgof-lineedit` should consume normalized key events instead of parsing bytes
+- apps can treat `editor_action_for_key()` as a sensible default policy, then
+  override any unmapped or app-specific keys themselves
 
 ## License
 
