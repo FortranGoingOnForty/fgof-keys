@@ -35,13 +35,13 @@ Implemented today:
 - pending-input buffering helpers for partial escape-sequence decoding
 - printable-byte and single-byte control-key decoding
 - CSI and SS3 decoding for arrows, home/end, page keys, insert/delete, and `F1`-`F4`
+- modifier normalization for common parameterized CSI key sequences
+- bracketed paste handling as a dedicated paste event
 - incomplete buffering for bare `ESC` and partial CSI or SS3 prefixes
 - CI and `fpm test` baseline wiring
 
 Still to implement:
 
-- modifier-rich named key normalization
-- bracketed paste handling
 - integration examples with `fgof-termios` and `fgof-lineedit`
 
 ## Why Use It
@@ -95,6 +95,7 @@ Current public procedures:
 - `has_pending_input`
 - `mark_escape_pending`
 - `named_key_event`
+- `paste_key_event`
 - `printable_key_event`
 - `take_pending_input`
 - `unknown_key_event`
@@ -104,7 +105,7 @@ Current public procedures:
 ```fortran
 program demo_keys
   use fgof_keys, only : clear_decoder_state, decode_bytes
-  use fgof_keys_types, only : FGOF_KEY_UP, key_decoder_state, key_event
+  use fgof_keys_types, only : FGOF_KEY_EVENT_PASTE, FGOF_KEY_UP, key_decoder_state, key_event
   implicit none
 
   type(key_decoder_state) :: state
@@ -113,7 +114,11 @@ program demo_keys
   state = clear_decoder_state()
   key = decode_bytes(state, achar(27) // "[A")
   if (key%key_name == FGOF_KEY_UP) then
-    key = decode_bytes(state, "a")
+    key = decode_bytes(state, achar(27) // "[200~hello" // achar(27) // "[201~")
+  end if
+
+  if (key%kind == FGOF_KEY_EVENT_PASTE) then
+    print *, key%text
   end if
 end program demo_keys
 ```
