@@ -154,6 +154,7 @@ contains
       fragment = ""
     end if
     state%escape_pending = .false.
+    state%bracketed_paste_active = .false.
   end function take_pending_input
 
   function decode_bytes(state, fragment) result(event)
@@ -513,10 +514,9 @@ contains
       event = named_key_event(FGOF_KEY_HOME, modifiers, sequence, .true.)
     case ("~")
       if (first_parameter == 200) then
-        call consume_pending_bytes(state, len(sequence))
         state%bracketed_paste_active = .true.
         state%escape_pending = .false.
-        event = incomplete_paste_event("")
+        event = incomplete_paste_event(sequence)
       else
         event = decode_csi_tilde_sequence(parameters, sequence, modifiers)
       end if
@@ -695,8 +695,10 @@ contains
     type(key_decoder_state), intent(inout) :: state
     type(key_event) :: event
 
+    character(len=*), parameter :: start_marker = achar(27) // "[200~"
     character(len=*), parameter :: end_marker = achar(27) // "[201~"
     integer :: marker_index
+    integer :: payload_start
     character(len=:), allocatable :: payload
     character(len=:), allocatable :: raw_bytes
 
@@ -706,12 +708,13 @@ contains
       return
     end if
 
-    if (marker_index > 1) then
-      payload = state%pending_bytes(:marker_index - 1)
+    payload_start = len(start_marker) + 1
+    if (marker_index > payload_start) then
+      payload = state%pending_bytes(payload_start:marker_index - 1)
     else
       payload = ""
     end if
-    raw_bytes = payload // end_marker
+    raw_bytes = state%pending_bytes(:marker_index + len(end_marker) - 1)
 
     event = paste_key_event(payload, raw_bytes)
     call consume_pending_bytes(state, len(raw_bytes))

@@ -1,5 +1,5 @@
 program test_decode_sequences
-  use fgof_keys, only : clear_decoder_state, decode_bytes, decode_next_event, has_pending_input
+  use fgof_keys, only : clear_decoder_state, decode_bytes, decode_next_event, has_pending_input, take_pending_input
   use fgof_keys_types, only : FGOF_KEY_DELETE, FGOF_KEY_END, FGOF_KEY_EVENT_PASTE, FGOF_KEY_F1, FGOF_KEY_HOME, &
                               FGOF_KEY_INSERT, FGOF_KEY_LEFT, FGOF_KEY_PAGEDOWN, FGOF_KEY_PAGEUP, &
                               FGOF_KEY_RIGHT, FGOF_KEY_UP, key_decoder_state, key_event
@@ -14,6 +14,7 @@ program test_decode_sequences
   call test_decode_modifier_csi_tilde()
   call test_decode_bracketed_paste()
   call test_decode_split_bracketed_paste()
+  call test_take_pending_input_resets_partial_paste()
   call test_keep_partial_csi_buffered()
 
 contains
@@ -142,6 +143,8 @@ contains
     call require(event%paste, "complete bracketed paste should mark paste events")
     call require(event%kind == FGOF_KEY_EVENT_PASTE, "complete bracketed paste should use paste kind")
     call require(event%text == "hello", "paste payload should preserve pasted text")
+    call require(event%raw_bytes == achar(27) // "[200~hello" // achar(27) // "[201~", &
+      "complete bracketed paste should preserve full raw bytes")
     call require(.not. has_pending_input(state), "complete bracketed paste should drain the buffer")
     call require(.not. state%bracketed_paste_active, "complete bracketed paste should clear active paste state")
   end subroutine test_decode_bracketed_paste
@@ -161,9 +164,32 @@ contains
     call require(event%recognized, "completed split paste should decode as recognized")
     call require(event%paste, "completed split paste should remain a paste event")
     call require(event%text == "hello", "split paste should preserve full payload")
+    call require(event%raw_bytes == achar(27) // "[200~hello" // achar(27) // "[201~", &
+      "split paste should preserve full raw bytes")
     call require(.not. state%bracketed_paste_active, "completed split paste should clear paste mode")
     call require(.not. has_pending_input(state), "completed split paste should drain the buffer")
   end subroutine test_decode_split_bracketed_paste
+
+  subroutine test_take_pending_input_resets_partial_paste()
+    type(key_decoder_state) :: state
+    type(key_event) :: event
+    character(len=:), allocatable :: pending
+
+    state = clear_decoder_state()
+    event = decode_bytes(state, achar(27) // "[200~he")
+    call require(event%incomplete, "partial paste should remain incomplete before taking pending input")
+    call require(state%bracketed_paste_active, "partial paste should mark paste mode active")
+
+    pending = take_pending_input(state)
+    call require(pending == achar(27) // "[200~he", "take_pending_input should return the full partial paste stream")
+    call require(.not. state%bracketed_paste_active, "take_pending_input should clear active paste state")
+    call require(.not. has_pending_input(state), "take_pending_input should drain pending paste bytes")
+
+    event = decode_bytes(state, "x")
+    call require(event%recognized, "decoder should recover cleanly after draining partial paste bytes")
+    call require(event%text == "x", "decoder should treat later plain bytes normally after draining partial paste")
+    call require(.not. event%paste, "decoder should not stay stuck in paste mode after draining partial paste")
+  end subroutine test_take_pending_input_resets_partial_paste
 
   subroutine test_keep_partial_csi_buffered()
     type(key_decoder_state) :: state
