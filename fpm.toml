@@ -9,7 +9,7 @@ description = "Terminal key decoding helpers for modern Fortran tools"
 [build]
 auto-executables = false
 auto-tests = true
-auto-examples = false
+auto-examples = true
 
 [install]
 library = true
@@ -18,3 +18,7 @@ library = true
 implicit-typing = false
 implicit-external = false
 source-form = "free"
+
+[dev-dependencies]
+fgof-lineedit = { git = "https://github.com/FortranGoingOnForty/fgof-lineedit.git", tag = "v0.1.0" }
+fgof-termios = { git = "https://github.com/FortranGoingOnForty/fgof-termios.git", tag = "v0.1.0" }
