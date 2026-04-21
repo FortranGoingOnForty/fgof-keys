@@ -7,6 +7,19 @@ module fgof_keys_types
   public :: FGOF_KEY_EVENT_PASTE
   public :: FGOF_KEY_EVENT_PRINTABLE
   public :: FGOF_KEY_EVENT_UNKNOWN
+  public :: FGOF_EDITOR_ACTION_ACCEPT_LINE
+  public :: FGOF_EDITOR_ACTION_CANCEL
+  public :: FGOF_EDITOR_ACTION_COMPLETE
+  public :: FGOF_EDITOR_ACTION_DELETE_LEFT
+  public :: FGOF_EDITOR_ACTION_DELETE_RIGHT
+  public :: FGOF_EDITOR_ACTION_HISTORY_NEXT
+  public :: FGOF_EDITOR_ACTION_HISTORY_PREVIOUS
+  public :: FGOF_EDITOR_ACTION_INSERT_TEXT
+  public :: FGOF_EDITOR_ACTION_MOVE_END
+  public :: FGOF_EDITOR_ACTION_MOVE_HOME
+  public :: FGOF_EDITOR_ACTION_MOVE_LEFT
+  public :: FGOF_EDITOR_ACTION_MOVE_RIGHT
+  public :: FGOF_EDITOR_ACTION_NONE
   public :: FGOF_KEY_BACKSPACE
   public :: FGOF_KEY_DELETE
   public :: FGOF_KEY_DOWN
@@ -34,6 +47,20 @@ module fgof_keys_types
   integer, parameter :: FGOF_KEY_EVENT_NAMED = 2
   integer, parameter :: FGOF_KEY_EVENT_PASTE = 3
   integer, parameter :: FGOF_KEY_EVENT_UNKNOWN = 4
+
+  integer, parameter :: FGOF_EDITOR_ACTION_NONE = 0
+  integer, parameter :: FGOF_EDITOR_ACTION_INSERT_TEXT = 1
+  integer, parameter :: FGOF_EDITOR_ACTION_ACCEPT_LINE = 2
+  integer, parameter :: FGOF_EDITOR_ACTION_COMPLETE = 3
+  integer, parameter :: FGOF_EDITOR_ACTION_CANCEL = 4
+  integer, parameter :: FGOF_EDITOR_ACTION_MOVE_LEFT = 5
+  integer, parameter :: FGOF_EDITOR_ACTION_MOVE_RIGHT = 6
+  integer, parameter :: FGOF_EDITOR_ACTION_MOVE_HOME = 7
+  integer, parameter :: FGOF_EDITOR_ACTION_MOVE_END = 8
+  integer, parameter :: FGOF_EDITOR_ACTION_DELETE_LEFT = 9
+  integer, parameter :: FGOF_EDITOR_ACTION_DELETE_RIGHT = 10
+  integer, parameter :: FGOF_EDITOR_ACTION_HISTORY_PREVIOUS = 11
+  integer, parameter :: FGOF_EDITOR_ACTION_HISTORY_NEXT = 12
 
   character(len=*), parameter :: FGOF_KEY_UP = "up"
   character(len=*), parameter :: FGOF_KEY_DOWN = "down"

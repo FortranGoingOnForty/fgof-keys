@@ -4,8 +4,14 @@ module fgof_keys
                               FGOF_KEY_EVENT_PASTE, FGOF_KEY_EVENT_PRINTABLE, FGOF_KEY_EVENT_UNKNOWN, &
                               FGOF_KEY_F1, FGOF_KEY_F2, FGOF_KEY_F3, FGOF_KEY_F4, FGOF_KEY_HOME, &
                               FGOF_KEY_INSERT, FGOF_KEY_LEFT, FGOF_KEY_PAGEDOWN, FGOF_KEY_PAGEUP, &
-                              FGOF_KEY_RIGHT, FGOF_KEY_TAB, FGOF_KEY_UP, key_decoder_state, key_event, &
-                              key_modifiers
+                              FGOF_KEY_RIGHT, FGOF_KEY_TAB, FGOF_KEY_UP, FGOF_EDITOR_ACTION_ACCEPT_LINE, &
+                              FGOF_EDITOR_ACTION_CANCEL, FGOF_EDITOR_ACTION_COMPLETE, &
+                              FGOF_EDITOR_ACTION_DELETE_LEFT, FGOF_EDITOR_ACTION_DELETE_RIGHT, &
+                              FGOF_EDITOR_ACTION_HISTORY_NEXT, FGOF_EDITOR_ACTION_HISTORY_PREVIOUS, &
+                              FGOF_EDITOR_ACTION_INSERT_TEXT, FGOF_EDITOR_ACTION_MOVE_END, &
+                              FGOF_EDITOR_ACTION_MOVE_HOME, FGOF_EDITOR_ACTION_MOVE_LEFT, &
+                              FGOF_EDITOR_ACTION_MOVE_RIGHT, FGOF_EDITOR_ACTION_NONE, &
+                              key_decoder_state, key_event, key_modifiers
   implicit none
   private
 
@@ -14,6 +20,8 @@ module fgof_keys
   public :: clear_decoder_state
   public :: decode_bytes
   public :: decode_next_event
+  public :: editor_action_for_key
+  public :: event_text
   public :: has_pending_input
   public :: mark_escape_pending
   public :: named_key_event
@@ -215,6 +223,59 @@ contains
       state%escape_pending = .false.
     end select
   end function decode_next_event
+
+  pure integer function editor_action_for_key(event) result(action)
+    type(key_event), intent(in) :: event
+
+    action = FGOF_EDITOR_ACTION_NONE
+
+    if (event%paste .or. event%printable) then
+      action = FGOF_EDITOR_ACTION_INSERT_TEXT
+      return
+    end if
+
+    if (.not. event%recognized) return
+
+    select case (event%key_name)
+    case (FGOF_KEY_ENTER)
+      action = FGOF_EDITOR_ACTION_ACCEPT_LINE
+    case (FGOF_KEY_TAB)
+      action = FGOF_EDITOR_ACTION_COMPLETE
+    case (FGOF_KEY_ESCAPE)
+      action = FGOF_EDITOR_ACTION_CANCEL
+    case (FGOF_KEY_LEFT)
+      action = FGOF_EDITOR_ACTION_MOVE_LEFT
+    case (FGOF_KEY_RIGHT)
+      action = FGOF_EDITOR_ACTION_MOVE_RIGHT
+    case (FGOF_KEY_HOME)
+      action = FGOF_EDITOR_ACTION_MOVE_HOME
+    case (FGOF_KEY_END)
+      action = FGOF_EDITOR_ACTION_MOVE_END
+    case (FGOF_KEY_BACKSPACE)
+      action = FGOF_EDITOR_ACTION_DELETE_LEFT
+    case (FGOF_KEY_DELETE)
+      action = FGOF_EDITOR_ACTION_DELETE_RIGHT
+    case (FGOF_KEY_UP)
+      action = FGOF_EDITOR_ACTION_HISTORY_PREVIOUS
+    case (FGOF_KEY_DOWN)
+      action = FGOF_EDITOR_ACTION_HISTORY_NEXT
+    end select
+  end function editor_action_for_key
+
+  pure function event_text(event) result(text)
+    type(key_event), intent(in) :: event
+    character(len=:), allocatable :: text
+
+    if (event%paste .or. event%printable) then
+      if (allocated(event%text)) then
+        text = event%text
+      else
+        text = ""
+      end if
+    else
+      text = ""
+    end if
+  end function event_text
 
   pure function incomplete_key_event(raw_bytes, escape_sequence) result(event)
     character(len=*), intent(in) :: raw_bytes
