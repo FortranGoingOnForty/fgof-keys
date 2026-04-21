@@ -8,9 +8,10 @@ program test_decode_core
   call test_decode_tab()
   call test_decode_enter()
   call test_decode_backspace()
-  call test_decode_unknown_control()
+  call test_decode_ctrl_letter()
   call test_decode_escape_as_pending()
-  call test_decode_escape_key_then_plain_byte()
+  call test_decode_alt_printable_byte()
+  call test_decode_split_alt_printable_byte()
   call test_leave_partial_csi_prefix_buffered()
 
 contains
@@ -74,17 +75,20 @@ contains
     call require(event%raw_bytes == achar(127), "backspace should preserve raw bytes")
   end subroutine test_decode_backspace
 
-  subroutine test_decode_unknown_control()
+  subroutine test_decode_ctrl_letter()
     type(key_decoder_state) :: state
     type(key_event) :: event
 
     state = clear_decoder_state()
     event = decode_bytes(state, achar(1))
 
-    call require(.not. event%recognized, "unsupported control bytes should stay unrecognized")
-    call require(event%kind == FGOF_KEY_EVENT_UNKNOWN, "unsupported control bytes should use unknown kind")
-    call require(event%raw_bytes == achar(1), "unknown control bytes should preserve raw bytes")
-  end subroutine test_decode_unknown_control
+    call require(event%recognized, "ctrl-letter bytes should decode as recognized events")
+    call require(event%printable, "ctrl-letter bytes should keep a printable payload")
+    call require(event%text == "a", "ctrl-A should normalize to printable a")
+    call require(event%modifiers%ctrl, "ctrl-letter bytes should set ctrl")
+    call require(.not. event%modifiers%alt, "plain ctrl-letter bytes should not set alt")
+    call require(event%raw_bytes == achar(1), "ctrl-letter bytes should preserve raw bytes")
+  end subroutine test_decode_ctrl_letter
 
   subroutine test_decode_escape_as_pending()
     type(key_decoder_state) :: state
@@ -99,23 +103,37 @@ contains
     call require(has_pending_input(state), "bare escape should remain buffered")
   end subroutine test_decode_escape_as_pending
 
-  subroutine test_decode_escape_key_then_plain_byte()
+  subroutine test_decode_alt_printable_byte()
     type(key_decoder_state) :: state
     type(key_event) :: event
 
     state = clear_decoder_state()
     event = decode_bytes(state, achar(27) // "a")
 
-    call require(event%recognized, "ESC followed by a plain byte should emit escape for now")
-    call require(event%key_name == FGOF_KEY_ESCAPE, "ESC followed by a plain byte should emit escape first")
-    call require(has_pending_input(state), "ESC followed by a plain byte should leave trailing bytes pending")
+    call require(event%recognized, "ESC-prefixed printable bytes should decode as recognized events")
+    call require(event%printable, "ESC-prefixed printable bytes should stay printable")
+    call require(event%text == "a", "alt-printable decode should preserve the text byte")
+    call require(event%modifiers%alt, "ESC-prefixed printable bytes should set alt")
+    call require(event%escape_sequence, "alt-printable bytes should mark escape-sequence origin")
+    call require(.not. has_pending_input(state), "alt-printable decode should consume both bytes")
+  end subroutine test_decode_alt_printable_byte
 
-    event = decode_next_event(state)
-    call require(event%recognized, "trailing plain byte should decode on the next pass")
-    call require(event%printable, "trailing plain byte should decode as printable")
-    call require(event%text == "a", "trailing plain byte should be preserved")
-    call require(.not. has_pending_input(state), "follow-up decode should drain the buffer")
-  end subroutine test_decode_escape_key_then_plain_byte
+  subroutine test_decode_split_alt_printable_byte()
+    type(key_decoder_state) :: state
+    type(key_event) :: event
+
+    state = clear_decoder_state()
+    event = decode_bytes(state, achar(27))
+    call require(event%incomplete, "bare escape should stay pending before a split alt sequence completes")
+    call require(has_pending_input(state), "bare escape should remain buffered before a split alt sequence completes")
+
+    event = decode_bytes(state, "a")
+    call require(event%recognized, "split ESC plus printable should decode once complete")
+    call require(event%printable, "split alt-printable should stay printable")
+    call require(event%text == "a", "split alt-printable should preserve text")
+    call require(event%modifiers%alt, "split alt-printable should set alt")
+    call require(.not. has_pending_input(state), "split alt-printable should drain the buffer")
+  end subroutine test_decode_split_alt_printable_byte
 
   subroutine test_leave_partial_csi_prefix_buffered()
     type(key_decoder_state) :: state

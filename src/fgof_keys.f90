@@ -50,15 +50,20 @@ contains
     state%bracketed_paste_active = .false.
   end function clear_decoder_state
 
-  pure function printable_key_event(text, modifiers) result(event)
+  pure function printable_key_event(text, modifiers, raw_bytes) result(event)
     character(len=*), intent(in) :: text
     type(key_modifiers), intent(in), optional :: modifiers
+    character(len=*), intent(in), optional :: raw_bytes
     type(key_event) :: event
 
     event = clear_event()
     event%kind = FGOF_KEY_EVENT_PRINTABLE
     event%text = text
-    event%raw_bytes = text
+    if (present(raw_bytes)) then
+      event%raw_bytes = raw_bytes
+    else
+      event%raw_bytes = text
+    end if
     event%recognized = .true.
     event%printable = .true.
     if (present(modifiers)) event%modifiers = modifiers
@@ -198,8 +203,7 @@ contains
         return
       end if
 
-      call consume_pending_bytes(state, 1)
-      event = named_key_event(FGOF_KEY_ESCAPE, raw_bytes=first_byte, escape_sequence=.true.)
+      event = decode_alt_prefixed_or_escape(state, bytes)
       state%escape_pending = .false.
     case (9)
       call consume_pending_bytes(state, 1)
@@ -212,6 +216,10 @@ contains
     case (8, 127)
       call consume_pending_bytes(state, 1)
       event = named_key_event(FGOF_KEY_BACKSPACE, raw_bytes=first_byte)
+      state%escape_pending = .false.
+    case (1:7, 11:12, 14:26)
+      call consume_pending_bytes(state, 1)
+      event = ctrl_printable_key_event(byte_code, first_byte)
       state%escape_pending = .false.
     case (32:126)
       call consume_pending_bytes(state, 1)
@@ -229,8 +237,15 @@ contains
 
     action = FGOF_EDITOR_ACTION_NONE
 
-    if (event%paste .or. event%printable) then
+    if (event%paste) then
       action = FGOF_EDITOR_ACTION_INSERT_TEXT
+      return
+    end if
+
+    if (event%printable) then
+      if (.not. event%modifiers%alt .and. .not. event%modifiers%ctrl .and. .not. event%modifiers%super) then
+        action = FGOF_EDITOR_ACTION_INSERT_TEXT
+      end if
       return
     end if
 
@@ -277,6 +292,39 @@ contains
     end if
   end function event_text
 
+  function decode_alt_prefixed_or_escape(state, bytes) result(event)
+    type(key_decoder_state), intent(inout) :: state
+    character(len=*), intent(in) :: bytes
+    type(key_event) :: event
+
+    character(len=1) :: second_byte
+    integer :: second_code
+
+    second_byte = bytes(2:2)
+    second_code = iachar(second_byte)
+
+    select case (second_code)
+    case (9)
+      call consume_pending_bytes(state, 2)
+      event = alt_named_key_event(FGOF_KEY_TAB, achar(27) // second_byte)
+    case (10, 13)
+      call consume_pending_bytes(state, 2)
+      event = alt_named_key_event(FGOF_KEY_ENTER, achar(27) // second_byte)
+    case (8, 127)
+      call consume_pending_bytes(state, 2)
+      event = alt_named_key_event(FGOF_KEY_BACKSPACE, achar(27) // second_byte)
+    case (1:7, 11:12, 14:26)
+      call consume_pending_bytes(state, 2)
+      event = ctrl_printable_key_event(second_code, achar(27) // second_byte, alt=.true.)
+    case (32:126)
+      call consume_pending_bytes(state, 2)
+      event = alt_printable_key_event(second_byte, achar(27) // second_byte)
+    case default
+      call consume_pending_bytes(state, 1)
+      event = named_key_event(FGOF_KEY_ESCAPE, raw_bytes=bytes(1:1), escape_sequence=.true.)
+    end select
+  end function decode_alt_prefixed_or_escape
+
   pure function incomplete_key_event(raw_bytes, escape_sequence) result(event)
     character(len=*), intent(in) :: raw_bytes
     logical, intent(in), optional :: escape_sequence
@@ -298,6 +346,44 @@ contains
     event%paste = .true.
     event%incomplete = .true.
   end function incomplete_paste_event
+
+  pure function alt_named_key_event(name, raw_bytes) result(event)
+    character(len=*), intent(in) :: name
+    character(len=*), intent(in) :: raw_bytes
+    type(key_event) :: event
+    type(key_modifiers) :: modifiers
+
+    modifiers%alt = .true.
+    event = named_key_event(name, modifiers=modifiers, raw_bytes=raw_bytes, escape_sequence=.true.)
+  end function alt_named_key_event
+
+  pure function alt_printable_key_event(text, raw_bytes) result(event)
+    character(len=*), intent(in) :: text
+    character(len=*), intent(in) :: raw_bytes
+    type(key_event) :: event
+    type(key_modifiers) :: modifiers
+
+    modifiers%alt = .true.
+    event = printable_key_event(text, modifiers=modifiers, raw_bytes=raw_bytes)
+    event%escape_sequence = .true.
+  end function alt_printable_key_event
+
+  pure function ctrl_printable_key_event(byte_code, raw_bytes, alt) result(event)
+    integer, intent(in) :: byte_code
+    character(len=*), intent(in) :: raw_bytes
+    logical, intent(in), optional :: alt
+    type(key_event) :: event
+    type(key_modifiers) :: modifiers
+    character(len=1) :: text
+
+    text = achar(iachar("a") + byte_code - 1)
+    modifiers%ctrl = .true.
+    if (present(alt)) modifiers%alt = alt
+    event = printable_key_event(text, modifiers=modifiers, raw_bytes=raw_bytes)
+    if (present(alt)) then
+      if (alt) event%escape_sequence = .true.
+    end if
+  end function ctrl_printable_key_event
 
   subroutine consume_pending_bytes(state, count)
     type(key_decoder_state), intent(inout) :: state

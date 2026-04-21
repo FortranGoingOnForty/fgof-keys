@@ -3,11 +3,12 @@ program test_editor_helpers
   use fgof_keys_types, only : FGOF_EDITOR_ACTION_ACCEPT_LINE, FGOF_EDITOR_ACTION_DELETE_LEFT, &
                               FGOF_EDITOR_ACTION_HISTORY_PREVIOUS, FGOF_EDITOR_ACTION_INSERT_TEXT, &
                               FGOF_EDITOR_ACTION_MOVE_LEFT, FGOF_EDITOR_ACTION_NONE, FGOF_KEY_BACKSPACE, &
-                              FGOF_KEY_ENTER, FGOF_KEY_F1, FGOF_KEY_LEFT, FGOF_KEY_UP, key_event
+                              FGOF_KEY_ENTER, FGOF_KEY_F1, FGOF_KEY_LEFT, FGOF_KEY_UP, key_event, key_modifiers
   implicit none
 
   call test_printable_maps_to_insert()
   call test_paste_maps_to_insert()
+  call test_modified_printable_stays_policy_neutral()
   call test_navigation_maps_to_edit_actions()
   call test_unmapped_keys_stay_none()
 
@@ -40,6 +41,18 @@ contains
       "paste events should also map to insert-text actions")
     call require(event_text(event) == "hello", "paste events should expose their full payload")
   end subroutine test_paste_maps_to_insert
+
+  subroutine test_modified_printable_stays_policy_neutral()
+    type(key_event) :: event
+    type(key_modifiers) :: modifiers
+
+    modifiers%alt = .true.
+    event = printable_key_event("x", modifiers=modifiers, raw_bytes=achar(27) // "x")
+
+    call require(editor_action_for_key(event) == FGOF_EDITOR_ACTION_NONE, &
+      "modified printable bytes should not auto-map to insert-text actions")
+    call require(event_text(event) == "x", "modified printable bytes should still expose text payload")
+  end subroutine test_modified_printable_stays_policy_neutral
 
   subroutine test_navigation_maps_to_edit_actions()
     type(key_event) :: event
