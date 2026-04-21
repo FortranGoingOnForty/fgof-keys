@@ -33,11 +33,12 @@ Implemented today:
 - explicit event-kind constants for printable, named, paste, and unknown flows
 - small constructor helpers for printable and named key events
 - pending-input buffering helpers for partial escape-sequence decoding
+- printable-byte and single-byte control-key decoding
+- incomplete buffering for bare `ESC` and CSI or SS3 prefixes
 - CI and `fpm test` baseline wiring
 
 Still to implement:
 
-- byte-stream decoding
 - CSI and SS3 escape parsing
 - modifier-rich named key normalization
 - bracketed paste handling
@@ -84,17 +85,20 @@ Current public procedures:
 - `buffer_input`
 - `clear_event`
 - `clear_decoder_state`
+- `decode_bytes`
+- `decode_next_event`
 - `has_pending_input`
 - `mark_escape_pending`
 - `named_key_event`
 - `printable_key_event`
 - `take_pending_input`
+- `unknown_key_event`
 
 ## Quick Start
 
 ```fortran
 program demo_keys
-  use fgof_keys, only : buffer_input, clear_decoder_state, named_key_event, printable_key_event
+  use fgof_keys, only : clear_decoder_state, decode_bytes
   use fgof_keys_types, only : key_decoder_state, key_event
   implicit none
 
@@ -102,9 +106,8 @@ program demo_keys
   type(key_event) :: key
 
   state = clear_decoder_state()
-  call buffer_input(state, achar(27) // "[")
-  key = printable_key_event("a")
-  key = named_key_event("up")
+  key = decode_bytes(state, "a")
+  key = decode_bytes(state, achar(9))
 end program demo_keys
 ```
 
