@@ -1,6 +1,7 @@
 program test_decode_sequences
   use fgof_keys, only : clear_decoder_state, decode_bytes, decode_next_event, has_pending_input, take_pending_input
-  use fgof_keys_types, only : FGOF_KEY_DELETE, FGOF_KEY_END, FGOF_KEY_EVENT_PASTE, FGOF_KEY_F1, FGOF_KEY_HOME, &
+  use fgof_keys_types, only : FGOF_KEY_DELETE, FGOF_KEY_END, FGOF_KEY_EVENT_PASTE, FGOF_KEY_F1, FGOF_KEY_F10, &
+                              FGOF_KEY_F2, FGOF_KEY_F5, FGOF_KEY_F6, FGOF_KEY_HOME, &
                               FGOF_KEY_INSERT, FGOF_KEY_LEFT, FGOF_KEY_PAGEDOWN, FGOF_KEY_PAGEUP, &
                               FGOF_KEY_RIGHT, FGOF_KEY_UP, key_decoder_state, key_event
   implicit none
@@ -10,6 +11,7 @@ program test_decode_sequences
   call test_decode_csi_navigation()
   call test_decode_ss3_navigation()
   call test_decode_ss3_function_key()
+  call test_decode_csi_function_keys()
   call test_decode_modifier_csi_arrow()
   call test_decode_modifier_csi_tilde()
   call test_decode_bracketed_paste()
@@ -107,6 +109,32 @@ contains
     call require(event%recognized, "SS3 P should decode as a recognized function key")
     call require(event%key_name == FGOF_KEY_F1, "SS3 P should map to f1")
   end subroutine test_decode_ss3_function_key
+
+  subroutine test_decode_csi_function_keys()
+    type(key_decoder_state) :: state
+    type(key_event) :: event
+
+    state = clear_decoder_state()
+    event = decode_bytes(state, achar(27) // "[11~")
+    call require(event%recognized, "CSI 11~ should decode as a recognized function key")
+    call require(event%key_name == FGOF_KEY_F1, "CSI 11~ should map to f1")
+
+    state = clear_decoder_state()
+    event = decode_bytes(state, achar(27) // "[12~")
+    call require(event%key_name == FGOF_KEY_F2, "CSI 12~ should map to f2")
+
+    state = clear_decoder_state()
+    event = decode_bytes(state, achar(27) // "[15~")
+    call require(event%key_name == FGOF_KEY_F5, "CSI 15~ should map to f5")
+
+    state = clear_decoder_state()
+    event = decode_bytes(state, achar(27) // "[17~")
+    call require(event%key_name == FGOF_KEY_F6, "CSI 17~ should map to f6")
+
+    state = clear_decoder_state()
+    event = decode_bytes(state, achar(27) // "[21~")
+    call require(event%key_name == FGOF_KEY_F10, "CSI 21~ should map to f10")
+  end subroutine test_decode_csi_function_keys
 
   subroutine test_decode_modifier_csi_arrow()
     type(key_decoder_state) :: state

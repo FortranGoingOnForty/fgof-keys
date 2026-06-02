@@ -2,7 +2,8 @@ module fgof_keys
   use fgof_keys_types, only : FGOF_KEY_BACKSPACE, FGOF_KEY_DELETE, FGOF_KEY_DOWN, FGOF_KEY_END, &
                               FGOF_KEY_ENTER, FGOF_KEY_ESCAPE, FGOF_KEY_EVENT_NAMED, FGOF_KEY_EVENT_NONE, &
                               FGOF_KEY_EVENT_PASTE, FGOF_KEY_EVENT_PRINTABLE, FGOF_KEY_EVENT_UNKNOWN, &
-                              FGOF_KEY_F1, FGOF_KEY_F2, FGOF_KEY_F3, FGOF_KEY_F4, FGOF_KEY_HOME, &
+                              FGOF_KEY_F1, FGOF_KEY_F2, FGOF_KEY_F3, FGOF_KEY_F4, FGOF_KEY_F5, &
+                              FGOF_KEY_F6, FGOF_KEY_F7, FGOF_KEY_F8, FGOF_KEY_F9, FGOF_KEY_F10, FGOF_KEY_HOME, &
                               FGOF_KEY_INSERT, FGOF_KEY_LEFT, FGOF_KEY_PAGEDOWN, FGOF_KEY_PAGEUP, &
                               FGOF_KEY_RIGHT, FGOF_KEY_TAB, FGOF_KEY_UP, FGOF_EDITOR_ACTION_ACCEPT_LINE, &
                               FGOF_EDITOR_ACTION_CANCEL, FGOF_EDITOR_ACTION_COMPLETE, &
@@ -547,6 +548,26 @@ contains
       event = named_key_event(FGOF_KEY_PAGEUP, modifiers, sequence, .true.)
     case (6)
       event = named_key_event(FGOF_KEY_PAGEDOWN, modifiers, sequence, .true.)
+    case (11)
+      event = named_key_event(FGOF_KEY_F1, modifiers, sequence, .true.)
+    case (12)
+      event = named_key_event(FGOF_KEY_F2, modifiers, sequence, .true.)
+    case (13)
+      event = named_key_event(FGOF_KEY_F3, modifiers, sequence, .true.)
+    case (14)
+      event = named_key_event(FGOF_KEY_F4, modifiers, sequence, .true.)
+    case (15)
+      event = named_key_event(FGOF_KEY_F5, modifiers, sequence, .true.)
+    case (17)
+      event = named_key_event(FGOF_KEY_F6, modifiers, sequence, .true.)
+    case (18)
+      event = named_key_event(FGOF_KEY_F7, modifiers, sequence, .true.)
+    case (19)
+      event = named_key_event(FGOF_KEY_F8, modifiers, sequence, .true.)
+    case (20)
+      event = named_key_event(FGOF_KEY_F9, modifiers, sequence, .true.)
+    case (21)
+      event = named_key_event(FGOF_KEY_F10, modifiers, sequence, .true.)
     case default
       event = unknown_key_event(sequence, escape_sequence=.true.)
     end select

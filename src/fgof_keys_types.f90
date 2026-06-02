@@ -30,6 +30,12 @@ module fgof_keys_types
   public :: FGOF_KEY_F2
   public :: FGOF_KEY_F3
   public :: FGOF_KEY_F4
+  public :: FGOF_KEY_F5
+  public :: FGOF_KEY_F6
+  public :: FGOF_KEY_F7
+  public :: FGOF_KEY_F8
+  public :: FGOF_KEY_F9
+  public :: FGOF_KEY_F10
   public :: FGOF_KEY_HOME
   public :: FGOF_KEY_INSERT
   public :: FGOF_KEY_LEFT
@@ -80,6 +86,12 @@ module fgof_keys_types
   character(len=*), parameter :: FGOF_KEY_F2 = "f2"
   character(len=*), parameter :: FGOF_KEY_F3 = "f3"
   character(len=*), parameter :: FGOF_KEY_F4 = "f4"
+  character(len=*), parameter :: FGOF_KEY_F5 = "f5"
+  character(len=*), parameter :: FGOF_KEY_F6 = "f6"
+  character(len=*), parameter :: FGOF_KEY_F7 = "f7"
+  character(len=*), parameter :: FGOF_KEY_F8 = "f8"
+  character(len=*), parameter :: FGOF_KEY_F9 = "f9"
+  character(len=*), parameter :: FGOF_KEY_F10 = "f10"
 
   type :: key_modifiers
     logical :: shift = .false.
