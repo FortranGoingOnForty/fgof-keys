@@ -1,7 +1,6 @@
 program test_decode_core
   use fgof_keys, only : clear_decoder_state, decode_bytes, decode_next_event, has_pending_input
-  use fgof_keys_types, only : FGOF_KEY_BACKSPACE, FGOF_KEY_ENTER, FGOF_KEY_ESCAPE, FGOF_KEY_EVENT_NONE, &
-                              FGOF_KEY_EVENT_UNKNOWN, FGOF_KEY_TAB, key_decoder_state, key_event
+  use fgof_keys_types, only : FGOF_KEY_BACKSPACE, FGOF_KEY_ENTER, FGOF_KEY_TAB, key_decoder_state, key_event
   implicit none
 
   call test_decode_printable_byte()

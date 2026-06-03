@@ -19,3 +19,16 @@ target_include_directories(fgof_keys PUBLIC
 target_compile_options(fgof_keys PRIVATE
   $<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-std=f2018 -Wall -Wextra -Wpedantic -Werror>
 )
+
+include(CTest)
+
+if(BUILD_TESTING)
+  foreach(test_name IN ITEMS scaffold decode_core decode_sequences editor_helpers)
+    add_executable(fgof_keys_${test_name}_test test/test_${test_name}.f90)
+    target_link_libraries(fgof_keys_${test_name}_test PRIVATE fgof_keys)
+    target_compile_options(fgof_keys_${test_name}_test PRIVATE
+      $<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-std=f2018 -Wall -Wextra -Wpedantic -Werror>
+    )
+    add_test(NAME fgof_keys_${test_name} COMMAND fgof_keys_${test_name}_test)
+  endforeach()
+endif()
